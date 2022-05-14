@@ -26,7 +26,29 @@ async function run() {
             res.send({ success: false, message: 'Server error' })
         })
 
+        app.get('/available', async (req, res) => {
+            const date = req.query.date
+            const services = await serviceCollection.find().toArray()
+            const bookings = await bookingsCollection.find({ date }).toArray()
+
+            services.forEach(service => {
+                const serviceBookings = bookings.filter(book => book.treatment === service.name)
+                const booked = serviceBookings.map(s => s.slot)
+                service.slots = service.slots.filter(slot => !booked.includes(slot))
+                console.log(serviceBookings, booked)
+            })
+
+            res.send({ success: true, result: services })
+        })
+
         //Bookings
+        app.get('/booking', async (req, res) => {
+            const patient = req.query.patient
+            const query = { patient }
+            const result = await bookingsCollection.find(query).toArray()
+            res.send(result)
+        })
+
         app.post('/booking', async (req, res) => {
             const booking = req.body
             const query = { treatment: booking.treatment, date: booking.date, patient: booking.patient }
