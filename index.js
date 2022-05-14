@@ -15,6 +15,7 @@ async function run() {
     try {
         await client.connect()
         const serviceCollection = client.db('doctorsPortal').collection('service')
+        const bookingsCollection = client.db('doctorsPortal').collection('bookings')
 
         app.get('/service', async (req, res) => {
             const query = req.query
@@ -23,6 +24,20 @@ async function run() {
                 return res.send({ success: true, result: result })
             }
             res.send({ success: false, message: 'Server error' })
+        })
+
+        //Bookings
+        app.post('/booking', async (req, res) => {
+            const booking = req.body
+            const query = { treatment: booking.treatment, date: booking.date, patient: booking.patient }
+            const exits = await bookingsCollection.findOne(query)
+            if (exits) {
+                return res.send({ success: false, message: 'Already booked' })
+            }
+            const result = await bookingsCollection.insertOne(booking)
+            if (result.insertedId) {
+                res.send({ success: true, message: 'Booking Success' })
+            }
         })
     } finally {
     }
