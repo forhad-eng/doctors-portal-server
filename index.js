@@ -33,8 +33,46 @@ async function run() {
         const serviceCollection = client.db('doctorsPortal').collection('service')
         const bookingsCollection = client.db('doctorsPortal').collection('bookings')
         const userCollection = client.db('doctorsPortal').collection('users')
+        const doctorCollection = client.db('doctorsPortal').collection('doctors')
+
+        const verifyAdmin = async (req, res, next) => {
+            const user = req.decoded.email
+            const userAcc = await userCollection.findOne({ email: user })
+            if (userAcc.role === 'admin') {
+                next()
+            } else {
+                res.status(401).send({ success: false, message: 'Unauthorized access' })
+            }
+        }
+
+        //ADMIN
+        app.get('/admin/:email', verifyJWT, verifyAdmin, async (req, res) => {
+            res.send({ admin: true })
+        })
+
+        //DOCTORS
+        app.post('/doctor', verifyJWT, verifyAdmin, async (req, res) => {
+            const doctor = req.body
+            const result = await doctorCollection.insertOne(doctor)
+            if (result.insertedId) {
+                res.send({ success: true, message: 'Inserted successfully' })
+            }
+        })
 
         //USERS
+        app.get('/user', verifyJWT, async (req, res) => {
+            const users = await userCollection.find().toArray()
+            res.send(users)
+        })
+
+        app.put('/user/admin/:email', verifyJWT, verifyAdmin, async (req, res) => {
+            const email = req.params.email
+            const filter = { email }
+            const updatedDoc = { $set: { role: 'admin' } }
+            const result = await userCollection.updateOne(filter, updatedDoc)
+            res.send(result)
+        })
+
         app.put('/user/:email', async (req, res) => {
             const email = req.params.email
             const user = req.body
@@ -49,9 +87,8 @@ async function run() {
         })
 
         //SERVICES
-        app.get('/service', async (req, res) => {
-            const query = req.query
-            const result = await serviceCollection.find(query).toArray()
+        app.get('/service', verifyJWT, async (req, res) => {
+            const result = await serviceCollection.find().project({ name: 1 }).toArray()
             if (result) {
                 return res.send({ success: true, result: result })
             }
