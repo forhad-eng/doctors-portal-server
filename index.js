@@ -51,11 +51,24 @@ async function run() {
         })
 
         //DOCTORS
+        app.get('/doctor', verifyJWT, verifyAdmin, async (req, res) => {
+            const result = await doctorCollection.find().toArray()
+            res.send(result)
+        })
+
         app.post('/doctor', verifyJWT, verifyAdmin, async (req, res) => {
             const doctor = req.body
             const result = await doctorCollection.insertOne(doctor)
             if (result.insertedId) {
                 res.send({ success: true, message: 'Inserted successfully' })
+            }
+        })
+
+        app.delete('/doctor/:email', verifyJWT, verifyAdmin, async (req, res) => {
+            const email = req.params.email
+            const result = await doctorCollection.deleteOne({ email })
+            if (result.deletedCount) {
+                res.send({ success: true, message: 'Removed successfully' })
             }
         })
 
