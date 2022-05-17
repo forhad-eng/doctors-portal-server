@@ -1,6 +1,8 @@
 const express = require('express')
 const cors = require('cors')
 const jwt = require('jsonwebtoken')
+const nodemailer = require('nodemailer')
+const sgTransport = require('nodemailer-sendgrid-transport')
 const { MongoClient, ServerApiVersion } = require('mongodb')
 require('dotenv').config()
 const app = express()
@@ -21,6 +23,46 @@ function verifyJWT(req, res, next) {
         }
         req.decoded = decoded
         next()
+    })
+}
+
+const emailOptions = {
+    auth: {
+        api_key: process.env.EMAIL_SENDER_KEY
+    }
+}
+
+const emailClient = nodemailer.createTransport(sgTransport(emailOptions))
+
+function sendAppointmentConfirmEmail(booking) {
+    const { patient, treatment, date, slot } = booking
+
+    var email = {
+        from: process.env.EMAIL_SENDER,
+        to: patient,
+        subject: `Your appointment for ${treatment} is confirmed`,
+        text: `Your appointment for ${treatment} is confirmed`,
+        html: `
+            <div>
+                <h3>Dear ${patient},</h3>
+                <p>Your appointment for ${treatment} has been confirmed. We are looking forward to seeing you on ${date} at ${slot}</p>
+                <p>Have a good day!</p>
+
+                <h3>Our Address</h3>
+                <p>Halishahar, Chittagong</p>
+                <p>Bangladesh</p>
+                <p>Contact @ 01819400400</p>
+                <a href="https://facebook.com">Unsubscribe</a>
+            </div>
+        `
+    }
+
+    emailClient.sendMail(email, function (err, info) {
+        if (err) {
+            console.log(err)
+        } else {
+            console.log('Message sent: ', info)
+        }
     })
 }
 
@@ -133,7 +175,7 @@ async function run() {
             }
         })
 
-        app.post('/booking', async (req, res) => {
+        app.post('/booking', verifyJWT, async (req, res) => {
             const booking = req.body
             const query = { treatment: booking.treatment, date: booking.date, patient: booking.patient }
             const exits = await bookingsCollection.findOne(query)
@@ -142,6 +184,7 @@ async function run() {
             }
             const result = await bookingsCollection.insertOne(booking)
             if (result.insertedId) {
+                sendAppointmentConfirmEmail(booking)
                 res.send({ success: true, message: 'Booking Success' })
             }
         })
