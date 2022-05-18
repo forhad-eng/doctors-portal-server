@@ -3,7 +3,7 @@ const cors = require('cors')
 const jwt = require('jsonwebtoken')
 const nodemailer = require('nodemailer')
 const sgTransport = require('nodemailer-sendgrid-transport')
-const { MongoClient, ServerApiVersion } = require('mongodb')
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb')
 require('dotenv').config()
 const app = express()
 const port = process.env.PORT || 5000
@@ -172,6 +172,15 @@ async function run() {
                 const query = { patient }
                 const result = await bookingsCollection.find(query).toArray()
                 res.send(result)
+            }
+        })
+
+        app.get('/booking/:id', verifyJWT, async (req, res) => {
+            const id = req.params.id
+            const query = {_id: ObjectId(id)}
+            const booking = await bookingsCollection.findOne(query)
+            if(booking){
+                res.send({success: true, booking})
             }
         })
 
