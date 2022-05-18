@@ -5,6 +5,7 @@ const nodemailer = require('nodemailer')
 const sgTransport = require('nodemailer-sendgrid-transport')
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb')
 require('dotenv').config()
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY)
 const app = express()
 const port = process.env.PORT || 5000
 
@@ -76,6 +77,7 @@ async function run() {
         const bookingsCollection = client.db('doctorsPortal').collection('bookings')
         const userCollection = client.db('doctorsPortal').collection('users')
         const doctorCollection = client.db('doctorsPortal').collection('doctors')
+        const paymentCollection = client.db('doctorsPortal').collection('payments')
 
         const verifyAdmin = async (req, res, next) => {
             const user = req.decoded.email
@@ -86,6 +88,19 @@ async function run() {
                 res.status(401).send({ success: false, message: 'Unauthorized access' })
             }
         }
+
+        //PAYMENT
+        app.post('/create-payment-intent', verifyJWT, async (req, res) => {
+            const { price } = req.body
+
+            const paymentIntent = await stripe.paymentIntents.create({
+                amount: price * 100,
+                currency: 'usd',
+                payment_method_types: ['card']
+            })
+
+            res.send({ clientSecret: paymentIntent.client_secret })
+        })
 
         //ADMIN
         app.get('/admin/:email', verifyJWT, verifyAdmin, async (req, res) => {
@@ -177,10 +192,10 @@ async function run() {
 
         app.get('/booking/:id', verifyJWT, async (req, res) => {
             const id = req.params.id
-            const query = {_id: ObjectId(id)}
+            const query = { _id: ObjectId(id) }
             const booking = await bookingsCollection.findOne(query)
-            if(booking){
-                res.send({success: true, booking})
+            if (booking) {
+                res.send({ success: true, booking })
             }
         })
 
@@ -195,6 +210,23 @@ async function run() {
             if (result.insertedId) {
                 sendAppointmentConfirmEmail(booking)
                 res.send({ success: true, message: 'Booking Success' })
+            }
+        })
+
+        app.patch('/booking/:id', verifyJWT, async (req, res) => {
+            const id = req.params.id
+            const booking = req.body
+            const filter = { _id: ObjectId(id) }
+            const updatedDoc = {
+                $set: {
+                    paid: true,
+                    transactionId: booking.transactionId
+                }
+            }
+            await paymentCollection.insertOne(booking)
+            const updatedBooking = await bookingsCollection.updateOne(filter, updatedDoc)
+            if (updatedBooking.modifiedCount) {
+                res.send({ success: true })
             }
         })
     } finally {
